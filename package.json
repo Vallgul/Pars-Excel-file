@@ -2,6 +2,7 @@
   "dependencies": {
     "async": "^3.2.2",
     "axios": "^0.24.0",
+    "fs": "^0.0.1-security",
     "xlsx": "^0.17.4"
   }
 }
