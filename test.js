@@ -1,3 +1,4 @@
+
 const axios = require("axios");
 const XLSX = require("xlsx");
 const Constants = require('./Constants');
@@ -7,21 +8,20 @@ const fs = require("fs");
 
 var filePath = "./mass_upload_locations.xlsx";
 
-const locationTemplateName = 'adnoc.location.master' // Поменять equipment на location
-const locationAttributeGroupName = 'adnoc.location.master' // Поменять equipment на location
-const locationAttributes = ['adnoc.objectType','adnoc.startupDate','adnoc.hdt.maintenancePlant','adnoc.hdt.plantSection','adnoc.hdt.plantLocation', //Изменить атрибуты под location
+const locationTemplateName = 'adnoc.location.master'
+const locationAttributeGroupName = 'adnoc.location.master'
+const locationAttributes = ['adnoc.objectType','adnoc.startupDate','adnoc.hdt.maintenancePlant','adnoc.hdt.plantSection','adnoc.hdt.plantLocation',
 'adnoc.hdt.hsecesCategory1','adnoc.hdt.criticalityCode','adnoc.hdt.sortField','adnoc.hdt.maintenancePlanningPlant',
 'adnoc.hdt.plannerGroup','adnoc.hdt.mainWorkCenter','adnoc.hdt.catalogProfile','adnoc.position'];
 
-var operatorID = "8F6077AC16B346E6A90CE8C983CFC6BD";
 var attributeKeysArray = {}, logs = {};
 
 
 module.exports.index = async function () {
 
-    var accessToken = await getToken();  //Получаем token как в постмане
+    var accessToken = await getToken();
     var workbook = XLSX.readFile(filePath);
-    var sheetNameList = workbook.SheetNames; // Массив с именами страниц
+    var sheetNameList = workbook.SheetNames;
     
     //For development only
     fs.appendFileSync("logs.txt", "///Logs recording started///");
@@ -29,22 +29,22 @@ module.exports.index = async function () {
     //Check which excel template are in use
     if (sheetNameList[0] == "LocHeader"){
       
-      templateId = await getTemplateKey(locationTemplateName, accessToken); //Получаем adnoc.location.master ID для templates
-      attributeGroupId = await getAttributeGroupKey(locationAttributeGroupName, accessToken); //Получаем adnoc.location.master ID для AttributeGroup
+      templateId = await getTemplateKey(locationTemplateName, accessToken);
+      attributeGroupId = await getAttributeGroupKey(locationAttributeGroupName, accessToken);
       for (var attribute of locationAttributes){
         attributeId = await getAttributeKey(attribute, accessToken);
         if(attribute == "adnoc.objectType" || attribute == "adnoc.startupDate" || attribute == "adnoc.position"){
-          resAttribute = attribute.slice(6); //slice убирает шесть символов перед записью (adnoc.)
-        } else { resAttribute = attribute.slice(10); } //slice убирает десять символов перед записью (adnoc.hdt.)
+          resAttribute = attribute.slice(6);
+        } else { resAttribute = attribute.slice(10); }
         
         attributeKeysArray[resAttribute] = attributeId;
       }
     
-     var dataLocHeader = XLSX.utils.sheet_to_json(workbook.Sheets[sheetNameList[0]]); //Считывает первую страницу построчно
-     for (row in dataLocHeader) {  //Берет по одной строке из массива строк, начиная с пятой строки
+    var dataLocHeader = XLSX.utils.sheet_to_json(workbook.Sheets[sheetNameList[0]]);
+    for (row in dataLocHeader) {
           if (row > 3) {
     
-             if (dataLocHeader[row]['method'] == "add"){
+            if (dataLocHeader[row]['method'] == "add"){
     
               if(dataLocHeader[row]['parentId'] != undefined && dataLocHeader[row]['parentId'] != null)
               {
@@ -77,7 +77,7 @@ module.exports.index = async function () {
     
             }
     
-            if (dataLocHeader[row]['method'] == "update" ){ //Не работает Location Update
+            if (dataLocHeader[row]['method'] == "update" ){
     
               locationID = await getLocationKey(dataLocHeader[row]['internalID'], accessToken);
               // if(dataLocHeader[row]['parentId'] != undefined && dataLocHeader[row]['parentId'] != null)
@@ -109,10 +109,9 @@ module.exports.index = async function () {
               // logs[data[i]['excelitemID']] = statusCode;
     
             }  
-         }
-        };
+        }
+      };
         
-     
     
     
     var dataLocComponents = XLSX.utils.sheet_to_json(workbook.Sheets[sheetNameList[1]]);
@@ -157,50 +156,6 @@ module.exports.index = async function () {
             }
         };
     
-    var dataEQAttributeValues = XLSX.utils.sheet_to_json(workbook.Sheets[sheetNameList[3]]);
-    for (row in dataEQAttributeValues) {
-        if ( row > 3 ) {
-    
-          if (dataEQAttributeValues[row]['method'] == "update" || dataEQAttributeValues[row]['method'] == "add"){
-          equipmentEQAttributeId = await getLocationKey(dataEQAttributeValues[row]['internalID'], accessToken);
-          templateEQAttributeId = await getEQTemplateKey(dataEQAttributeValues[row]['eqtemplateID'], accessToken);
-          attributeEQGroupId = await getAttributeGroupKey(dataEQAttributeValues[row]['attributegroupID'], accessToken);
-          attributeEQId = await getAttributeKey(dataEQAttributeValues[row]['attributeID'], accessToken);
-    
-          resCurrentTemplates = await getCurrentEQTemplates(equipmentEQAttributeId, accessToken); 
-          payloadTemplates = await prepareTemplatesAssignPayload(resCurrentTemplates, templateEQAttributeId);
-          updateURL = SERVICE_URLS.AIN.BASE_PATH + "equipment(" + equipmentEQAttributeId + ")/templates";
-          method = "update";
-          resTemplatesUpdate = await handleOperation(method, updateURL, payloadTemplates, accessToken);
-    
-          URL = SERVICE_URLS.AIN.BASE_PATH + 'equipment(' + equipmentEQAttributeId + ')/values'
-          payloadEQAttributeValues = await prepareEQAttributeValuesPayload(dataEQAttributeValues[row]);
-          resEQAttributeValuesUpdate = await handleOperation(method, URL, payloadEQAttributeValues, accessToken);
-          
-          resErrorHadling = await handleError(dataEQAttributeValues[row], resEQAttributeValuesUpdate);
-          }
-    
-          if (dataEQAttributeValues[row]['method'] == "delete"){
-            equipmentEQAttributeId = await getLocationKey(dataEQAttributeValues[row]['internalID'], accessToken);
-            templateEQAttributeId = await getEQTemplateKey(dataEQAttributeValues[row]['eqtemplateID'], accessToken);
-            attributeEQGroupId = await getAttributeGroupKey(dataEQAttributeValues[row]['attributegroupID'], accessToken);
-            attributeEQId = await getAttributeKey(dataEQAttributeValues[row]['attributeID'], accessToken);
-            resCurrentTemplates = await getCurrentEQTemplates(equipmentEQAttributeId, accessToken);
-    
-            payloadTemplates = await prepareTemplatesUnassignPayload(resCurrentTemplates, templateEQAttributeId);
-            updateURL = SERVICE_URLS.AIN.BASE_PATH + "equipment(" + equipmentEQAttributeId + ")/templates";
-            method = "update";
-            resTemplatesDelete = await handleOperation(method, updateURL, payloadTemplates, accessToken);
-      
-            //URL = SERVICE_URLS.AIN.BASE_PATH + 'equipment(' + equipmentEQAttributeId + ')/values'
-            //payloadEQAttributeValues = await prepareEQAttributeValuesPayload(dataEQAttributeValues[row]);
-            //resEQAttributeValuesUpdate = await handleOperation(method, URL, payloadEQAttributeValues, accessToken);
-            
-            resErrorHadling = await handleError(dataEQAttributeValues[row], resTemplatesDelete);
-            }
-        }
-    };
-    
     console.log("Logs:", logs)
     
     }
@@ -229,9 +184,9 @@ module.exports.index = async function () {
         },
       });
     
-       var accessToken = res.data.access_token;
-       return accessToken
-     };
+      var accessToken = res.data.access_token;
+      return accessToken
+    };
     
     async function getTemplateKey(template, accessToken){
       URL = SERVICE_URLS.AIN.BASE_PATH + "templates?$filter=internalId eq '" + template + "'";
@@ -256,29 +211,6 @@ module.exports.index = async function () {
       }
     }
     
-    async function getStraightLocationKey(location, accessToken){
-      URL = SERVICE_URLS.AIN.BASE_PATH + "location?$filter=name eq '" + location + "'";
-      res = await handleOperation( "read", URL, "", accessToken );
-      if (res.data != undefined && res.data != [] && res.data[0] != undefined  ){
-        return locationID = res.data[0].locationID;
-      }
-    }
-    
-    async function getChildNodesEquipmentKey(equipment, accessToken){
-      URL = SERVICE_URLS.AIN.BASE_PATH + "equipment(" + equipment + ")/components?$expand=childNodes";
-      res = await handleOperation( "read" , URL, "", accessToken );
-      if (res != undefined){
-        var currentChildNodes = new Array();
-        res.data.childNodes.forEach(function(item) {
-          childNodeObj = { id: item.id, order: item.order, objectType: item.objectType, state: item.state }
-          currentChildNodes.push(childNodeObj)
-      });
-      }
-      console.log("currentChildNodesFinal",currentChildNodes);
-      return currentChildNodes;
-      
-    }
-    
     async function getChildNodesLocationKey(location, accessToken){
       URL = SERVICE_URLS.AIN.BASE_PATH + "location(" + location + ")/components?$expand=childNodes";
       res = await handleOperation( "read" , URL, "", accessToken );
@@ -293,15 +225,6 @@ module.exports.index = async function () {
       return currentChildNodes;
     }
     
-      async function getLocationEquipmentKey(location, accessToken){
-        URL = SERVICE_URLS.AIN.BASE_PATH + "location?$filter=name eq '" + location + "'";
-        res = await handleOperation( "read" , URL, "", accessToken );
-        if (res.data != undefined && res.data != null && res.data != [] && res.data[0] != undefined ){
-          return locationId = res.data[0].locationId;
-        }
-      
-      }
-    
       async function getParentIdKey(parentName, accessToken){
         URL = SERVICE_URLS.AIN.BASE_PATH + "location?$filter=name eq '" + parentName + "'";
         res = await handleOperation( "read" , URL, "", accessToken );
@@ -313,7 +236,7 @@ module.exports.index = async function () {
     
     async function getAttributeGroupKey(attributeGroup, accessToken){
         URL = SERVICE_URLS.AIN.BASE_PATH + "attributegroups?$filter=(substringof('" + attributeGroup + "', name) eq true)";
-        res = await handleOperation( "read" , URL, "", accessToken ); //Вызывается функция handleOperation, в которой в зависимости от переданного метода будет вызвана другая функция
+        res = await handleOperation( "read" , URL, "", accessToken );
         if (res.data != undefined && res.data != null && res.data !== [] && res.data[0] != undefined ){
         return res.data[0].id;
         }
@@ -325,32 +248,7 @@ module.exports.index = async function () {
         if (res.data != undefined && res.data != null && res.data !== [] && res.data[0] != undefined){
         return res.data[0].id;
         }
-    }
-    
-    async function getSparePartKey(sparepartInternalID, accessToken){
-      URL = SERVICE_URLS.AIN.BASE_PATH + "parts?$filter=sparepartInternalID eq '"+ sparepartInternalID + "'";
-      res = await handleOperation( "read" , URL, "", accessToken );
-      if (res.data != undefined && res.data != null && res.data !== [] && res.data[0] != undefined){
-      return res.data[0].id;
-      }
-    }
-    
-    async function getCurrentEQTemplates(equipment, accessToken){
-      URL = SERVICE_URLS.AIN.BASE_PATH + "equipment(" + equipment + ")/templates";
-      res = await handleOperation("read", URL, "", accessToken);
-      if (res != undefined){
-        var currentTemplates = new Array();
-        res.data.forEach(function(item) {
-          templateObj = { id: item.id }
-          currentTemplates.push(templateObj)
-      });
-      }
-      console.log("currentTemplates",currentTemplates);
-      return currentTemplates;
-      
-    }
-    
-    
+    }       
     async function prepareLocHeaderPayload(row){
     
       if (parentId != undefined){
@@ -411,7 +309,6 @@ module.exports.index = async function () {
     async function prepareLocAttributesPayload(row){
       maintenancePlant = String(row['adnoc.hdt.maintenancePlant']);
       maintenancePlanningPlant = String(row['adnoc.hdt.maintenancePlanningPlant']);
-      var nane;
       locationAttributesPayload = {
         templates: [{
                 templateId: templateId,
@@ -515,84 +412,6 @@ module.exports.index = async function () {
       return equipmentComponentsPayload = JSON.stringify(equipmentComponentsPayload);
     }
     
-    async function prepareEQSparePartsPayload(row){
-    
-      equipmentSparePartsPayload = {
-        "assigneeID": assigneeID,
-        "operation": row['method'],
-        "partAssignments": [{
-          "partID": partID,
-          "quantity": row['quantity'],
-          "advisedStockQuantity": row['advisedStockQuantity'],
-          "bomQuantity": row['bomQuantity'],
-          "additionalInfo": row['additionalInfo']
-        }]
-      
-      }
-      
-      return equipmentSparePartsPayload = JSON.stringify(equipmentSparePartsPayload);
-    }
-    
-    async function prepareEQAttributeValuesPayload(row){
-      attributeValue = String(row['attrValue']);
-      equipmentAttributeValuesPayload = {
-        templates: [{
-                templateId: templateEQAttributeId,
-                attributeGroups: [
-                    {
-                        attributeGroupId: attributeEQGroupId,
-                        attributes: [
-                            {
-                                attributeId: attributeEQId,
-                                value1: attributeValue},
-                        ]
-                    }
-                ]
-        }]
-    }
-    console.log("EQ AttributeValuesPayload", equipmentAttributeValuesPayload)
-    return equipmentAttributeValuesPayload = JSON.stringify(equipmentAttributeValuesPayload);
-    
-    }
-    
-    async function prepareTemplatesAssignPayload(currentTemplates, templateEQAttributeId){
-      
-      var updateFlag = true;
-      if(currentTemplates !== undefined){
-          currentTemplates.forEach(function(item) {
-            if (item.id == templateEQAttributeId){
-              updateFlag = false;
-            }
-        });
-        } else {updateFlag = false;};
-      if (updateFlag){
-           additionalTemplate = {
-          "id": templateEQAttributeId
-        };
-        currentTemplates.push(additionalTemplate);
-      }
-        equipmentTemplatesPayload = {
-          "templates": currentTemplates
-        }
-      
-        return equipmentTemplatesPayload = JSON.stringify(equipmentTemplatesPayload);
-    }
-    
-    async function prepareTemplatesUnassignPayload(currentTemplates, templateEQAttributeId){
-      //if(currentTemplates != undefined){
-        var templatesUnassign = new Array();
-        currentTemplates.forEach(function(item) {
-          if (item.id != templateEQAttributeId){
-              templatesUnassign.push(item);
-          }
-      });
-      //}
-      equipmentTemplatesPayload = {
-        "templates": templatesUnassign
-      }
-      console.log("Delete payload",  equipmentTemplatesPayload)
-      return  equipmentTemplatesPayload = JSON.stringify( equipmentTemplatesPayload);
-    }
     
     async function handleOperation( method, URL, payload, access_token ) {
       switch(method) {
